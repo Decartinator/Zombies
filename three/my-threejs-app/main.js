@@ -66,6 +66,8 @@ const powerUpTypes = {
     HEALTH_BOOST: 'healthBoost',
 };
 
+
+
 class PowerUp {
     constructor(type, position,scene) {
         this.type = type;
@@ -420,20 +422,40 @@ addStars();
 createTerrain();   
        
         
-const createZombie = (skin, position) => {
+const createZombie = (skin, position,soundUrl) => {
+    console.log(soundUrl)
     loader.load(skin, (fbx) => {
         fbx.scale.setScalar(0.03);
         fbx.position.copy(position);
         fbx.name = 'Zombie';
         scene.add(fbx);
 
+        // Create an audio listener
+        const listener = new THREE.AudioListener();
+        camera.add(listener); // Assuming you have a camera
+
+        // Create audio source for the zombie
+        const zombieSound = new THREE.Audio(listener);
+        const audioLoader = new THREE.AudioLoader();
+        
+        audioLoader.load(soundUrl, (buffer) => {
+            zombieSound.setBuffer(buffer);
+            zombieSound.setLoop(true); // Set to loop if you want continuous sound
+            zombieSound.setVolume(1); // Initial volume
+            zombieSound.play(); // Start playing the sound
+        });
+
+
         const mixer = new THREE.AnimationMixer(fbx);
-        const zombieData = { fbx, mixer, actionChosen: false, chosenAction: null, isDead: false, life: 10 }; // Set life to 5
+        const zombieData = { fbx, mixer, actionChosen: false, chosenAction: null, isDead: false, life: 10, sound:zombieSound }; // Set life to 5
+
+        
 
         // Load animations
         loader.load('/Running.fbx', (fb) => {
             zombieData.runAction = mixer.clipAction(fb.animations[0]);
             zombieData.runAction.play();
+            
         });
         loader.load('/Zombie_Punching.fbx', (fb) => {
             zombieData.punchAction = mixer.clipAction(fb.animations[0]);
@@ -465,6 +487,26 @@ const createZombie = (skin, position) => {
     });
 };
 
+const updateZombieSounds = () => {
+    zombies.forEach(zombie => {
+        if (zombie.sound && zombie.fbx) {
+            // Calculate the distance from the camera to the zombie
+            const distance = zombie.fbx.position.distanceTo(camera.position);
+            // Adjust the volume based on distance
+            const maxDistance = 50; // Set a distance at which sound is inaudible
+            const minVolume = 0.1; // Minimum volume
+            const maxVolume = 1.0; // Maximum volume
+
+            // Calculate the volume based on distance
+            if (distance < maxDistance) {
+                const volume = Math.max(minVolume, maxVolume - (distance / maxDistance) * (maxVolume - minVolume));
+                zombie.sound.setVolume(volume);
+            } else {
+                zombie.sound.setVolume(0); // Set volume to 0 if outside maxDistance
+            }
+        }
+    });
+};
            
 
 function createWall(terrainGeometry) {
@@ -897,11 +939,29 @@ function addTrees() {
 }
 
 addTrees();
+
 function addZombies(playerPosition) {
     const zombieCount = width * 0.01 * currentLevel; // Adjust based on desired density
     const maxAttempts = zombieCount * 10; // Maximum attempts to find valid positions
     let placedZombies = 0;
     let attempts = 0;
+
+    const zombieTypes = [
+        {
+            skin: './Zombiegirl.fbx', // Path to the zombie girl skin
+            sound: './girlzombie.mp3' // Path to the zombie girl sound
+        },
+        {
+            skin: './YakuzaZombie.fbx', // Path to the yakuza zombie skin
+            sound: './yakuzazombie.mp3' // Path to the yakuza zombie sound
+        },
+        {
+            skin: './Warzombie.fbx', // Path to the zombie girl skin
+            sound: './warzombie.mp3' // Path to the zombie girl sound
+        }
+        // Add more types as needed
+    ];
+    
 
     while (placedZombies < zombieCount && attempts < maxAttempts) {
         attempts++;
@@ -925,8 +985,12 @@ function addZombies(playerPosition) {
             continue; // Skip this iteration if the space is not clear
         }
 
+        const zombieIndex = Math.floor(Math.random() * zombieTypes.length);
+        const selectedZombie = zombieTypes[zombieIndex];
+
         // Create the zombie using the createZombie function
-        createZombie('/Warzombie.fbx', new THREE.Vector3(x, 0, z));
+        createZombie(selectedZombie.skin, new THREE.Vector3(x, 0, z),selectedZombie.sound);
+
 
         // Increment the count of placed zombies
         placedZombies++;
@@ -1139,8 +1203,7 @@ function checkPowerUpCollection() {
             powerUps.splice(i, 1); // Remove from the active list
             updateLifeBar(); // Update the life bar
 
-            console.log('powerup activated!!:'+powerUp.type)
-            console.log('player speed after:'+moveSpeed + "\n"+ 'zombiespeed after:'+zombieSpeed + "\n"+'player health after:'+playerLife)
+            window.alert('powerup activated!!:'+powerUp.type+"\n"+'player speed after:'+moveSpeed + "\n"+ 'zombiespeed after:'+zombieSpeed + "\n"+'player health after:'+playerLife)
         }
     }
 }
@@ -1486,6 +1549,8 @@ function handleZombies(delta) {
 
                     updateMinimap();
                     checkPowerUpCollection();
+                    updateZombieSounds();
+
                 
 
                 renderer.render(scene, camera);
