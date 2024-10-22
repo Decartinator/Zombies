@@ -2,22 +2,43 @@ import * as THREE from 'three';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 import {PointerLockControls} from 'three/examples/jsm/controls/PointerLockControls.js'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import  { displayStory,storyComplete} from './story';
 
 
+let loadingComplete = false; // Flag to track if loading is complete
 
 
+function checkIfReadyToClose() {
+    // Log to see the status of the flags
+    console.log(`Loading Complete: ${loadingComplete}, Story Complete: ${storyComplete}`);
+    if (loadingComplete && storyComplete) {
+        // Hide loading screen when both loading and story are complete
+        document.getElementById('loading-screen').style.display = 'none';
+        document.getElementById('story-container').style.display = 'none';
+        // Start the game or next phase here
+       
+    }
+}
 // Loading Manager to track progress
 const loadingManager = new THREE.LoadingManager(
     () => {
-        // Hide loading screen when loading is complete
-        document.getElementById('loading-screen').style.display = 'none';
+        // Set loadingComplete to true when loading is done
+        loadingComplete = true;
+        checkIfReadyToClose(); // Check if both conditions are met
     },
     (itemUrl, itemsLoaded, itemsTotal) => {
         // Update the progress bar
         const progress = (itemsLoaded / itemsTotal) * 100;
         document.getElementById('progress-bar').style.width = `${progress}%`;
+        
+        // Start displaying the story as the loading progresses
+        displayStory(checkIfReadyToClose); // Pass check function to story
+
+    
     }
 );
+
+
 
 let sun, moon, sunMesh, moonMesh,  sky, clouds, stars, terrainGeometry;
 let daySkyMaterial, nightSkyMaterial;
@@ -41,6 +62,8 @@ function pauseGame() {
         playSign.style.display = 'none'; // Hide the play sign
         clock.stop(); // Stop the clock when paused
     console.log('Game Paused');
+    forestSound.pause();
+
     // Optionally, display a pause menu or overlay here
 }
 
@@ -51,6 +74,8 @@ function resumeGame() {
     pauseSign.style.display = 'none'; // Hide the pause sign
         playSign.style.display = 'block'; // Show the play sign
         clock.start(); // Resume the clock
+        forestSound.play();
+
         
         // Hide the play sign after 1 second
         setTimeout(() => {
@@ -196,6 +221,9 @@ const controls = new PointerLockControls(camera, document.body);
 
 const MalescreamSound = new Audio('scream.mp3'); // Replace with your audio file path
 MalescreamSound.volume = 0.5; // Set volume to 70%
+
+const Endmusic = new Audio('gameover.mp3');
+
 
 const forestSound = new Audio('forest.mp3'); // Replace with your audio file path
 forestSound.loop = true; // Loop the sound for continuous play
@@ -394,6 +422,13 @@ function checkGameOver() {
         updateLifeBar();
         showGameOverScreen();
 
+        Endmusic.play().catch(error => {
+            console.error("Error playing end sound:", error);
+        });
+        Endmusic.currentTime = 26; // Start from 32 seconds
+        Endmusic.volume=2;
+
+
         forestSound.pause();
         forestSound.currentTime = 0;
     }
@@ -489,7 +524,7 @@ const createZombie = (skin, position,soundUrl) => {
 
 const updateZombieSounds = () => {
     zombies.forEach(zombie => {
-        if (zombie.sound && zombie.fbx) {
+        if (zombie.sound && zombie.fbx&&!isGameOver) {
             // Calculate the distance from the camera to the zombie
             const distance = zombie.fbx.position.distanceTo(camera.position);
             // Adjust the volume based on distance
@@ -504,6 +539,11 @@ const updateZombieSounds = () => {
             } else {
                 zombie.sound.setVolume(0); // Set volume to 0 if outside maxDistance
             }
+        }
+        else if(isGameOver){
+            zombie.sound.setVolume(0.1); // Set volume to 0 if outside maxDistance
+
+
         }
     });
 };
@@ -768,23 +808,58 @@ function getTerrainHeight(x, z, terrainGeometry, terrainWidth, terrainLength, re
     }
 
     function addClouds() {
-      clouds = new THREE.Group();
-      const cloudGeometry = new THREE.SphereGeometry(5, 8, 8);
-      const cloudMaterial = new THREE.MeshBasicMaterial({ color: 0xFFFFFF, transparent: true, opacity: 0.8 });
-
-      for (let i = 0; i < 100; i++) {
-        const cloudPart = new THREE.Mesh(cloudGeometry, cloudMaterial);
-        cloudPart.position.set(
-          Math.random() * 800 - 400,
-          Math.random() * 100 + 200,
-          Math.random() * 800 - 400
-        );
-        cloudPart.scale.set(Math.random() * 2 + 1, Math.random() * 2 + 1, Math.random() * 2 + 1);
-        clouds.add(cloudPart);
-      }
-      scene.add(clouds);
+        clouds = new THREE.Group();
+        const loader = new GLTFLoader();
+        const cloudModelPath = './cloud.glb';
+        const cloudCount = 19;
+    
+        loader.load(cloudModelPath, (gltf) => {
+            const cloudModel = gltf.scene;
+    
+            // Set up materials for the original model
+            cloudModel.traverse((child) => {
+                if (child.isMesh) {
+                    // Create a completely new material instead of cloning
+                    const newMaterial = new THREE.MeshStandardMaterial({
+                        color: 0xFFFFFF,
+                        transparent: true,
+                        opacity: 0.2,
+                        emissive: 0xFFFFFF,
+                        emissiveIntensity: 0.2,
+                        roughness: 0.1,
+                        metalness: 0,
+                    });
+                    child.material = newMaterial;
+                }
+            });
+    
+            // Create multiple cloud instances
+            for (let i = 0; i < cloudCount; i++) {
+                const cloudPart = cloudModel.clone();
+                cloudPart.position.set(
+                    Math.random() * 1300-100 ,
+                    Math.random() * 500 +300,
+                    Math.random() * 1800 -300
+                );
+    
+                const scaleFactor = Math.random() * 55 + 4;
+                cloudPart.scale.set(scaleFactor, scaleFactor, scaleFactor);
+    
+                // Ensure each instance has its own material
+                cloudPart.traverse((child) => {
+                    if (child.isMesh) {
+                        child.material = child.material.clone();
+                    }
+                });
+    
+                clouds.add(cloudPart);
+            }
+    
+            scene.add(clouds);
+        }, undefined, (error) => {
+            console.error('An error occurred while loading the GLB model:', error);
+        });
     }
-
     function addStars() {
       stars = new THREE.Group();
       const starGeometry = new THREE.SphereGeometry(0.7, 8, 8);
@@ -832,12 +907,21 @@ function getTerrainHeight(x, z, terrainGeometry, terrainWidth, terrainLength, re
       sky.material.color.copy(skyColor);
 
       // Adjust cloud opacity based on time of day
-      if (clouds.visible) {
+      if (clouds && clouds.visible) {
         const cloudOpacity = Math.min(1, Math.max(0, (t - 0.4) * 2));
-        clouds.children.forEach(cloud => {
-          cloud.material.opacity = cloudOpacity * 0.8;
+        clouds.children.forEach(cloudPart => {
+            // Traverse through all meshes in the cloud part
+            cloudPart.traverse((child) => {
+                if (child.isMesh && child.material) {
+                    if (!child.material.transparent) {
+                        child.material = child.material.clone(); // Clone the material if it hasn't been yet
+                        child.material.transparent = true;
+                    }
+                    child.material.opacity = cloudOpacity * 0.2;
+                }
+            });
         });
-      }
+    }
 
       // Adjust star brightness based on time of day
       if (stars.visible) {
@@ -972,7 +1056,7 @@ function addZombies(playerPosition) {
         const distanceToPlayer = Math.sqrt(Math.pow(playerPosition.x - x, 2) + Math.pow(playerPosition.z - z, 2));
 
         // Ensure the zombie is at least 150 units away from the player's position
-        if (distanceToPlayer < 50) {
+        if (distanceToPlayer < 70) {
             continue; // Skip this iteration if the zombie is too close to the player
         }
 
@@ -1203,7 +1287,7 @@ function checkPowerUpCollection() {
             powerUps.splice(i, 1); // Remove from the active list
             updateLifeBar(); // Update the life bar
 
-            window.alert('powerup activated!!:'+powerUp.type+"\n"+'player speed after:'+moveSpeed + "\n"+ 'zombiespeed after:'+zombieSpeed + "\n"+'player health after:'+playerLife)
+            //window.alert('powerup activated!!:'+powerUp.type+"\n"+'player speed after:'+moveSpeed + "\n"+ 'zombiespeed after:'+zombieSpeed + "\n"+'player health after:'+playerLife)
         }
     }
 }
@@ -1347,7 +1431,7 @@ function handleZombies(delta) {
                 updateLifeBar(); // Update the life bar based on player's life
                 if (playerLife <= 0) {
                     playerLife = 0;
-                    alert('Game Over'); // End game if player's life reaches zero
+                   
                 }
             }
             // Handle attacking actions if close to the player
@@ -1460,12 +1544,11 @@ function handleZombies(delta) {
 
         // Animation loop
         const clock = new THREE.Clock();
+
+        
         function animate() {
             const delta = clock.getDelta();
-            if (!isGameOver&&!isPaused) {
-                handleZombies(delta);
-                // ... (rest of your animate function)
-            }
+           
             
             checkGameOver();
             
@@ -1474,6 +1557,11 @@ function handleZombies(delta) {
                 requestAnimationFrame(animate);
 
                 if (controls.isLocked === true) {
+                  
+                    if (!isGameOver&&!isPaused) {
+                        handleZombies(delta);
+                        // ... (rest of your animate function)
+                    }
 
                 
 

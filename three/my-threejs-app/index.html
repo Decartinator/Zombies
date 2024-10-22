@@ -83,6 +83,35 @@
         justify-content: center;
         flex-direction: column;
       }
+
+.story-text p {
+    opacity: 0; /* Initially hidden */
+    transition: opacity 0.5s ease-in; /* Smooth transition */
+}
+
+.story-text p {
+    opacity: 1; /* Set opacity to 1 when the word is displayed */
+}
+
+#story-container {
+    display: flex; /* Use flexbox to align items in a row */
+    flex-wrap: wrap; /* Allow wrapping if the text gets too long */
+    align-items: center; /* Center items vertically if needed */
+    padding: 10px;
+    width: 100%; /* Adjust width based on your needs */
+}
+
+#story-container p {
+    display: inline-block; /* Make the <p> elements inline-block to prevent vertical stacking */
+    margin-right: 8px; /* Add some space between words */
+    opacity: 0; /* Initially hidden */
+    transition: opacity 0.5s ease-in-out; /* Fade-in effect */
+}
+
+#story-container p.visible {
+    opacity: 1; /* Set visible when the class is added */
+}
+
       #progress-container {
         width: 80%;
         background: #333;
@@ -131,6 +160,9 @@
         <div id="progress-container">
           <div id="progress-bar"></div>
         </div>
+        <div id="story-container" style="position: absolute; top: 10px; left: 10px; color: white;">
+            <p id="story-text"></p>
+        </div>
       </div>
 
       <div id="pauseSign" class="overlay">PAUSED</div>
@@ -138,5 +170,6 @@
 
       
     <script type="module" src="/main.js"></script>
+  
   </body>
 </html>
